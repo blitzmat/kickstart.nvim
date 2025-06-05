@@ -168,14 +168,14 @@ vim.o.confirm = true
 
 -- [[ Basic Keymaps ]]
 --  See `:help vim.keymap.set()`
-
+vim.keymap.set('n', '<C-p>', 'o<ESC>p', { desc = 'Paste and create new line below' })
+vim.keymap.set('n', '<leader>pv', vim.cmd.Ex, { desc = 'Go back to [P]roject list' })
 -- Clear highlights on search when pressing <Esc> in normal mode
 --  See `:help hlsearch`
 vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>')
 
 -- Diagnostic keymaps
 vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagnostic [Q]uickfix list' })
-
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
 -- is not what someone will guess without a bit more experience.
@@ -344,6 +344,7 @@ require('lazy').setup({
 
       -- Document existing key chains
       spec = {
+        { '<leader>p', group = '[P]roject' },
         { '<leader>s', group = '[S]earch' },
         { '<leader>t', group = '[T]oggle' },
         { '<leader>h', group = 'Git [H]unk', mode = { 'n', 'v' } },
@@ -660,16 +661,102 @@ require('lazy').setup({
       --  When you add blink.cmp, luasnip, etc. Neovim now has *more* capabilities.
       --  So, we create new capabilities with blink.cmp, and then broadcast that to the servers.
       local capabilities = require('blink.cmp').get_lsp_capabilities()
+      require('lspconfig').gdscript.setup(capabilities)
 
+      -- TypeScript-Tools (ts_ls) Configuration
+      require('lspconfig').typescript_tools.setup {
+        capabilities = capabilities,
+        on_attach = function(client, bufnr)
+          -- Your existing on_attach configuration
+          -- Add these TS-specific commands
+          vim.api.nvim_buf_create_user_command(bufnr, 'TSToolsOrganizeImports', function()
+            vim.cmd 'TSToolsOrganizeImports'
+          end, { desc = 'Organize Imports' })
+        end,
+        settings = {
+          separate_diagnostic_server = true,
+          publish_diagnostic_on = 'insert_leave',
+          tsserver_path = '',
+          tsserver_plugins = {
+            -- For Vue support in TS files
+            '@vue/typescript-plugin',
+          },
+          complete_function_calls = true,
+        },
+        filetypes = {
+          'javascript',
+          'javascriptreact',
+          'javascript.jsx',
+          'typescript',
+          'typescriptreact',
+          'typescript.tsx',
+          'vue',
+          -- Omit 'vue' to let Volar handle Vue files
+        },
+      }
+
+      -- Vue (Volar) Configuration
+      require('lspconfig').volar.setup {
+        capabilities = capabilities,
+        filetypes = { 'vue' },
+        -- Enable Take Over Mode (recommended for Vue 3)
+        init_options = {
+          vue = {
+            hybridMode = false,
+          },
+          typescript = {
+            tsdk = vim.fn.expand '/usr/lib/node_modules/typescript/lib',
+            -- Update the path to your TypeScript installation
+          },
+        },
+      }
+
+      -- Optional: ESLint Configuration
+      require('lspconfig').eslint.setup {
+        capabilities = require('blink.cmp').get_lsp_capabilities(),
+        on_attach = function(client, bufnr)
+          -- Auto-fix on save
+          vim.api.nvim_create_autocmd('BufWritePre', {
+            buffer = bufnr,
+            command = 'EslintFixAll',
+          })
+        end,
+        settings = {
+          -- ESLint options
+          packageManager = 'npm',
+          codeAction = {
+            disableRuleComment = {
+              enable = true,
+              location = 'separateLine',
+            },
+            showDocumentation = {
+              enable = true,
+            },
+          },
+          -- Adjust for your project
+          validate = 'on',
+          rulesCustomizations = {},
+          run = 'onType',
+          nodePath = '',
+        },
+        filetypes = {
+          'javascript',
+          'javascriptreact',
+          'typescript',
+          'typescriptreact',
+          'vue',
+        },
+      }
       -- Enable the following language servers
       --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
       --
       --  Add any additional override configuration in the following tables. Available keys are:
       --  - cmd (table): Override the default command used to start the server
       --  - filetypes (table): Override the default list of associated filetypes for the server
-      --  - capabilities (table): Override fields in capabilities. Can be used to disable certain LSP features.
+      --  - capabilities (table): Override fields in capabilities. Can be used to disabl:e certain LSP features.
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
+
       local servers = {
         -- clangd = {},
         -- gopls = {},
@@ -681,9 +768,19 @@ require('lazy').setup({
         --    https://github.com/pmizio/typescript-tools.nvim
         --
         -- But for many setups, the LSP (`ts_ls`) will work just fine
-        -- ts_ls = {},
         --
-
+        ts_ls = {},
+        -- Vue 3
+        -- vue_ls = {
+        --   filetypes = { 'vue', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact' },
+        --   init_options = {
+        --     typescript = {
+        --       serverPath = vim.fn.glob(
+        --         vim.fn.stdpath 'data' .. '/mason/packages/typescript-language-server/node_modules/typescript-language-server/lib/cli.js'
+        --       ),
+        --     },
+        --   },
+        -- },
         lua_ls = {
           -- cmd = { ... },
           -- filetypes = { ... },
@@ -720,8 +817,9 @@ require('lazy').setup({
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
       require('mason-lspconfig').setup {
-        ensure_installed = {}, -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
+        ensure_installed = vim.tbl_keys(servers), -- explicitly set to an empty table (Kickstart populates installs via mason-tool-installer)
         automatic_installation = false,
+        automatic_enable = true,
         handlers = {
           function(server_name)
             local server = servers[server_name] or {}
@@ -756,7 +854,7 @@ require('lazy').setup({
         -- Disable "format_on_save lsp_fallback" for languages that don't
         -- have a well standardized coding style. You can add additional
         -- languages here or re-enable it for the disabled ones.
-        local disable_filetypes = { c = true, cpp = true }
+        local disable_filetypes = { c = true, cpp = true, vue = true }
         if disable_filetypes[vim.bo[bufnr].filetype] then
           return nil
         else
@@ -944,7 +1042,23 @@ require('lazy').setup({
     main = 'nvim-treesitter.configs', -- Sets main module to use for opts
     -- [[ Configure Treesitter ]] See `:help nvim-treesitter`
     opts = {
-      ensure_installed = { 'bash', 'c', 'diff', 'html', 'lua', 'luadoc', 'markdown', 'markdown_inline', 'query', 'vim', 'vimdoc' },
+      ensure_installed = {
+        'bash',
+        'c',
+        'diff',
+        'html',
+        'lua',
+        'luadoc',
+        'markdown',
+        'markdown_inline',
+        'query',
+        'vim',
+        'vimdoc',
+        'gdscript',
+        'vue',
+        'typescript',
+        'javascript',
+      },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = {
@@ -984,7 +1098,7 @@ require('lazy').setup({
   --    This is the easiest way to modularize your config.
   --
   --  Uncomment the following line and add your plugins to `lua/custom/plugins/*.lua` to get going.
-  -- { import = 'custom.plugins' },
+  { import = 'custom.plugins' },
   --
   -- For additional information with loading, sourcing and examples see `:help lazy.nvim-🔌-plugin-spec`
   -- Or use telescope!
