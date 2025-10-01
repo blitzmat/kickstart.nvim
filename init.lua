@@ -665,7 +665,12 @@ require('lazy').setup({
       --  When you add blink.cmp, luasnip, etc. Neovim now has *more* capabilities.
       --  So, we create new capabilities with blink.cmp, and then broadcast that to the servers.
       local capabilities = require('blink.cmp').get_lsp_capabilities()
-      require('lspconfig').gdscript.setup(capabilities)
+      local util = require 'lspconfig.util'
+      require('lspconfig').gdscript.setup {
+        cmd = { '/home/blitzmat/godot', '--headless', '--editor', '--lsp' },
+        filetypes = { 'gd', 'gdscript' },
+        root_dir = util.root_pattern 'project.godot',
+      }
 
       -- TypeScript-Tools (ts_ls) Configuration
       require('lspconfig').typescript_tools.setup {
@@ -775,16 +780,16 @@ require('lazy').setup({
         --
         ts_ls = {},
         -- Vue 3
-        -- vue_ls = {
-        --   filetypes = { 'vue', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact' },
-        --   init_options = {
-        --     typescript = {
-        --       serverPath = vim.fn.glob(
-        --         vim.fn.stdpath 'data' .. '/mason/packages/typescript-language-server/node_modules/typescript-language-server/lib/cli.js'
-        --       ),
-        --     },
-        --   },
-        -- },
+        vue_ls = {
+          filetypes = { 'vue', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact' },
+          init_options = {
+            typescript = {
+              serverPath = vim.fn.glob(
+                vim.fn.stdpath 'data' .. '/mason/packages/typescript-language-server/node_modules/typescript-language-server/lib/cli.js'
+              ),
+            },
+          },
+        },
         lua_ls = {
           -- cmd = { ... },
           -- filetypes = { ... },
