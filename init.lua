@@ -259,7 +259,32 @@ require('lazy').setup({
   --
   -- Use `opts = {}` to automatically pass options to a plugin's `setup()` function, forcing the plugin to be loaded.
   --
-
+  -- Avante (local Ollama integration)
+  {
+    'yetone/avante.nvim',
+    build = 'make',
+    dependencies = {
+      'nvim-lua/plenary.nvim',
+      'nvim-tree/nvim-web-devicons',
+      'MunifTanjim/nui.nvim',
+    },
+    config = function()
+      require('avante').setup {
+        provider = 'ollama',
+        providers = {
+          ollama = {
+            endpoint = 'http://127.0.0.1:11434',
+            model = 'codellama:7b', -- change to llama3.2 or other
+          },
+        },
+        mappings = {
+          toggle_chat = '<leader>ac',
+          ask = '<leader>aa',
+          edit = '<leader>ae',
+        },
+      }
+    end,
+  },
   -- Alternatively, use `config = function() ... end` for full control over the configuration.
   -- If you prefer to call `setup` explicitly, use:
   --    {
@@ -666,96 +691,60 @@ require('lazy').setup({
       --  So, we create new capabilities with blink.cmp, and then broadcast that to the servers.
       local capabilities = require('blink.cmp').get_lsp_capabilities()
       local util = require 'lspconfig.util'
-      require('lspconfig').gdscript.setup {
+
+      vim.lsp.config['gdscript'] = {
         cmd = { '/home/blitzmat/godot', '--headless', '--editor', '--lsp' },
         filetypes = { 'gd', 'gdscript' },
-        root_dir = util.root_pattern 'project.godot',
+        root_dir = require('lspconfig.util').root_pattern 'project.godot',
       }
+      vim.lsp.start(vim.lsp.config['gdscript'])
 
       -- TypeScript-Tools (ts_ls) Configuration
-      require('lspconfig').typescript_tools.setup {
-        capabilities = capabilities,
-        on_attach = function(client, bufnr)
-          -- Your existing on_attach configuration
-          -- Add these TS-specific commands
-          vim.api.nvim_buf_create_user_command(bufnr, 'TSToolsOrganizeImports', function()
-            vim.cmd 'TSToolsOrganizeImports'
-          end, { desc = 'Organize Imports' })
-        end,
+      vim.lsp.config['lua_ls'] = {
+        cmd = { 'lua-language-server' },
         settings = {
-          separate_diagnostic_server = true,
-          publish_diagnostic_on = 'insert_leave',
-          tsserver_path = '',
-          tsserver_plugins = {
-            -- For Vue support in TS files
-            '@vue/typescript-plugin',
+          Lua = {
+            diagnostics = { globals = { 'vim' } },
           },
-          complete_function_calls = true,
         },
-        filetypes = {
-          'javascript',
-          'javascriptreact',
-          'javascript.jsx',
-          'typescript',
-          'typescriptreact',
-          'typescript.tsx',
-          'vue',
-          -- Omit 'vue' to let Volar handle Vue files
-        },
+      }
+
+      vim.lsp.config['ts_ls'] = {
+        cmd = { 'typescript-language-server', '--stdio' },
+        filetypes = { 'typescript', 'typescriptreact', 'javascript', 'javascriptreact' },
+        root_dir = vim.fs.dirname(vim.fs.find({ 'tsconfig.json', 'package.json', '.git' }, { upward = true })[1]),
       }
 
       -- Vue (Volar) Configuration
-      require('lspconfig').volar.setup {
-        capabilities = capabilities,
-        filetypes = { 'vue' },
-        -- Enable Take Over Mode (recommended for Vue 3)
-        init_options = {
-          vue = {
-            hybridMode = false,
-          },
-          typescript = {
-            tsdk = vim.fn.expand '/usr/lib/node_modules/typescript/lib',
-            -- Update the path to your TypeScript installation
-          },
-        },
-      }
+      -- vim.lsp.config['volar'] = {
+      --   capabilities = require('blink.cmp').get_lsp_capabilities(),
+      --   filetypes = { 'vue' },
+      --   init_options = {
+      --     vue = { hybridMode = false },
+      --     typescript = { tsdk = vim.fn.expand '/usr/lib/node_modules/typescript/lib' },
+      --   },
+      -- }
+      -- vim.lsp.start(vim.lsp.config['volar'])
 
       -- Optional: ESLint Configuration
-      require('lspconfig').eslint.setup {
+      vim.lsp.config['eslint'] = {
         capabilities = require('blink.cmp').get_lsp_capabilities(),
         on_attach = function(client, bufnr)
-          -- Auto-fix on save
           vim.api.nvim_create_autocmd('BufWritePre', {
             buffer = bufnr,
             command = 'EslintFixAll',
           })
         end,
         settings = {
-          -- ESLint options
           packageManager = 'npm',
           codeAction = {
-            disableRuleComment = {
-              enable = true,
-              location = 'separateLine',
-            },
-            showDocumentation = {
-              enable = true,
-            },
+            disableRuleComment = { enable = true, location = 'separateLine' },
+            showDocumentation = { enable = true },
           },
-          -- Adjust for your project
-          validate = 'on',
-          rulesCustomizations = {},
-          run = 'onType',
-          nodePath = '',
         },
-        filetypes = {
-          'javascript',
-          'javascriptreact',
-          'typescript',
-          'typescriptreact',
-          'vue',
-        },
+        filetypes = { 'javascript', 'typescript', 'vue' },
       }
+      vim.lsp.start(vim.lsp.config['eslint'])
       -- Enable the following language servers
       --  Feel free to add/remove any LSPs that you want here. They will automatically be installed.
       --
