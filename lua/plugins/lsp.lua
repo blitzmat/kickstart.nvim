@@ -31,19 +31,6 @@ return {
       capabilities = capabilities,
     }
 
-    -- Register typescript-tools with vim.lsp.config
-    vim.lsp.config('typescript_tools', {
-      capabilities = capabilities,
-      filetypes = {
-        'typescript',
-        'typescriptreact',
-        'javascript',
-        'javascriptreact',
-        'vue',
-      },
-      -- You can add other standard LSP settings here if needed
-    })
-
     -- Lua server setup
     vim.lsp.config.lua_ls = {
       capabilities = capabilities,
@@ -115,37 +102,32 @@ return {
       automatic_enable = true,
     }
 
-    -- FileType auto-enable (updated for typescript_tools)
     vim.api.nvim_create_autocmd('FileType', {
       pattern = { 'lua', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'vue' },
       callback = function(args)
-        local filetype_to_server = {
-          lua = 'lua_ls',
-          typescript = 'typescript_tools',
-          javascript = 'typescript_tools',
-          typescriptreact = 'typescript_tools',
-          javascriptreact = 'typescript_tools',
-          vue = 'vue_ls',
+        local ft_to_servers = {
+          lua = { 'lua_ls' },
+          typescript = { 'typescript-tools' },
+          javascript = { 'typescript-tools' },
+          typescriptreact = { 'typescript-tools' },
+          javascriptreact = { 'typescript-tools' },
+          vue = { 'vue_ls', 'typescript-tools' }, -- important
         }
 
-        local server_name = filetype_to_server[args.match]
-        if server_name and vim.lsp.config[server_name] then
-          local clients = vim.lsp.get_clients { bufnr = args.buf }
-          local has_server = false
-          for _, client in ipairs(clients) do
-            if client.name == server_name then
-              has_server = true
-              break
+        local servers = ft_to_servers[args.match]
+        if not servers then
+          return
+        end
+
+        vim.schedule(function()
+          for _, name in ipairs(servers) do
+            vim.lsp.enable(name)
+            if #vim.lsp.get_clients { bufnr = args.buf, name = name } == 0 then
+              vim.cmd('LspStart ' .. name)
             end
           end
-
-          if not has_server then
-            vim.lsp.enable(server_name, args.buf)
-          end
-        end
+        end)
       end,
     })
-
-    -- ... rest of your configuration ...
   end,
 }
