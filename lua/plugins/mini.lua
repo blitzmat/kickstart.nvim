@@ -29,16 +29,14 @@ return {
           end
 
           -- 2. If it's a Vue file but TS context failed, manually detect block
-          if vim.bo.filetype == 'vue' then
-            local node = vim.treesitter.get_node()
-            while node do
-              if node:type() == 'template_element' then
-                return ''
-              elseif node:type() == 'script_element' then
-                return '// %s'
-              end
-              node = node:parent()
+          local ft = vim.bo.filetype
+          if ft == 'vue' or ft == 'html' then
+            -- If we are near an HTML-like tag, use HTML comments
+            local line = vim.api.nvim_get_current_line()
+            if line:match '<[^>]*>' or ft == 'html' then
+              return ''
             end
+            return '// %s'
           end
 
           -- 3. Final fallback
