@@ -23,32 +23,33 @@ return {
       -- ... your existing diagnostic config ...
     }
 
-    -- Get capabilities from blink.cmp
     local capabilities = require('blink.cmp').get_lsp_capabilities()
 
-    -- Setup typescript-tools
+    -- 1. Setup typescript-tools (Disable this if you want to use vtsls/ts_ls instead)
     require('typescript-tools').setup {
       capabilities = capabilities,
+      settings = {
+        -- This helps prevent typescript-tools from fighting with Volar
+        expose_as_code_action = 'all',
+        tsserver_plugins = {
+          '@vue/typescript-plugin',
+        },
+      },
     }
 
-    -- Lua server setup
+    -- 2. Define Server Configurations
     vim.lsp.config.lua_ls = {
       capabilities = capabilities,
       settings = {
         Lua = {
           runtime = { version = 'LuaJIT' },
           diagnostics = { globals = { 'vim' } },
-          workspace = {
-            library = vim.api.nvim_get_runtime_file('', true),
-            checkThirdParty = false,
-          },
+          workspace = { checkThirdParty = false },
           telemetry = { enable = false },
-          completion = { callSnippet = 'Replace' },
         },
       },
     }
 
-    -- Vue LSP configuration - FIXED VERSION
     vim.lsp.config.vue_ls = {
       capabilities = capabilities,
       filetypes = { 'vue' },
@@ -59,34 +60,16 @@ return {
             return root_dir and (root_dir .. '/node_modules/typescript/lib') or ''
           end)(),
         },
-        vue = {
-          hybridMode = true,
-        },
+        vue = { hybridMode = true },
       },
+      on_new_config = function(new_config, new_root_dir)
+        if vim.env.NVIM_TS == 'typescript-tools' then
+          new_config.init_options.typescript.tsdk = nil
+        end
+      end,
     }
 
-    -- HTML configuration
-    vim.lsp.config('html', {
-      filetypes = { 'html', 'blade' },
-      capabilities = capabilities,
-      init_options = {
-        embeddedLanguages = {
-          css = true,
-          javascript = true,
-        },
-      },
-    })
-    vim.lsp.enable 'html'
-
-    -- GDScript configuration
-    vim.lsp.config.gdscript = {
-      cmd = { '/home/blitzmat/godot', '--headless', '--editor', '--lsp' },
-      filetypes = { 'gd', 'gdscript' },
-      root_dir = require('lspconfig.util').root_pattern 'project.godot',
-      capabilities = capabilities,
-    }
-
-    -- Mason setup
+    -- 3. Mason Setup
     require('mason-tool-installer').setup {
       ensure_installed = {
         'stylua',
@@ -98,12 +81,14 @@ return {
 
     require('mason-lspconfig').setup {
       ensure_installed = { 'lua_ls', 'vue_ls' },
+      -- CRITICAL: Disable this to stop Mason from auto-starting ts_ls/vtsls
       automatic_installation = true,
-      automatic_enable = true,
+      automatic_enable = false,
     }
 
+    -- 4. Manual Server Activation Logic
     vim.api.nvim_create_autocmd('FileType', {
-      pattern = { 'lua', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'vue' },
+      pattern = { 'lua', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'vue', 'html', 'blade' },
       callback = function(args)
         local ft_to_servers = {
           lua = { 'lua_ls' },
@@ -111,7 +96,10 @@ return {
           javascript = { 'typescript-tools' },
           typescriptreact = { 'typescript-tools' },
           javascriptreact = { 'typescript-tools' },
-          vue = { 'vue_ls', 'typescript-tools' }, -- important
+          -- FIX: Make sure BOTH are listed here clearly
+          vue = { 'typescript-tools', 'vue_ls' },
+          html = { 'html' },
+          blade = { 'html' },
         }
 
         local servers = ft_to_servers[args.match]
@@ -119,14 +107,13 @@ return {
           return
         end
 
-        vim.schedule(function()
-          for _, name in ipairs(servers) do
-            vim.lsp.enable(name)
-            if #vim.lsp.get_clients { bufnr = args.buf, name = name } == 0 then
-              vim.cmd('LspStart ' .. name)
-            end
+        for _, name in ipairs(servers) do
+          vim.lsp.enable(name)
+          -- Force start if not already running
+          if #vim.lsp.get_clients { name = name, bufnr = args.buf } == 0 then
+            vim.cmd('LspStart ' .. name)
           end
-        end)
+        end
       end,
     })
   end,
