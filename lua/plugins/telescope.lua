@@ -26,6 +26,27 @@ return {
           '--smart-case',
           '--glob=!node_modules/**',
         },
+        file_ignore_patterns = {
+          'node_modules/', -- Ignore node_modules directories
+          '.git/', -- Ignore .git directories (though vcs_ignore handles this)
+          'dist/', -- Ignore build/distribution directories
+          'build/', -- Another common build directory
+          'target/', -- Common in Rust/Java projects
+          '.vscode/', -- VS Code specific configuration
+          '.idea/', -- Intellij/JetBrains IDE configuration
+          '*.log', -- Ignore all .log files
+          '*.bak', -- Ignore backup files
+          'tags', -- Ctags/Exuberant Ctags file
+          'tmp/', -- Temporary directories
+          'docs/', -- Maybe you don't want to search documentation often
+          'frontend/node_modules/', -- Specific path for a monorepo
+          'package-lock.json', -- Sometimes useful to ignore
+          '__pycache__/', -- Python compiled files
+          '.venv/', -- Python virtual environments
+          'vendor/', -- Common for Go/PHP dependencies
+          'Cargo.lock', -- Rust dependency lock file
+          'Rakefile', -- Ruby build file
+        },
       },
       extensions = {
         ['ui-select'] = {
