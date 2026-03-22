@@ -1,14 +1,3 @@
-local function get_windows_host_ip()
-  -- This command finds the default gateway (your Windows Host) inside WSL
-  local cmd = "ip route | grep default | awk '{print $3}'"
-  local handle = io.popen(cmd)
-  local result = handle:read '*a'
-  handle:close()
-  return result:gsub('%s+', '') -- Remove whitespace/newlines
-end
-
-local win_ip = get_windows_host_ip()
-
 return {
   'yetone/avante.nvim',
   build = vim.fn.has 'win32' ~= 0 and 'powershell -ExecutionPolicy Bypass -File Build.ps1 -BuildFromSource false' or 'make',
@@ -27,86 +16,56 @@ return {
     },
     -- Ensure these mentions are enabled so you can trigger them manually
     hints = { enabled = true },
-    provider = 'gemini',
+    provider = 'deepseek',
     providers = {
-      gemini = {
-        -- Updated to Gemini 3.1 Pro endpoint
-        endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite-preview:generateContent',
-        model = 'gemini-3.1-flash-lite-preview',
-        timeout = 30000,
-        temperature = 0,
-        max_tokens = 4096,
-        max_iterations = 1,
-        parse_curl_args = function(opts, code_opts)
-          return {
-            url = opts.endpoint .. '?key=' .. os.getenv 'GEMINI_API_KEY',
-            headers = { ['Content-Type'] = 'application/json' },
-            body = {
-              contents = {
-                { role = 'user', parts = { { text = code_opts.instructions or code_opts.prompt or 'hi' } } },
-              },
-              generationConfig = {
-                temperature = 0,
-                -- CRITICAL: Disable the new March 2026 'Thinking' to stop the loop
-                thinkingConfig = { includeThoughts = false },
-                maxOutputTokens = opts.max_tokens,
-              },
-            },
-          }
-        end,
-
-        parse_response_data = function(data_stream, event_state, opts)
-          if event_state == 'complete' then
-            return
-          end
-          local ok, json = pcall(vim.json.decode, data_stream)
-
-          -- Only process if we have a valid text part
-          if ok and json.candidates and json.candidates[1].content.parts then
-            local parts = json.candidates[1].content.parts
-            for _, part in ipairs(parts) do
-              -- Skip anything tagged as 'thought' or 'call'
-              if part.text and not part.thought and not part.functionCall then
-                opts.on_chunk(part.text)
-                return -- Stop parsing after first valid text to prevent echoes
-              end
-            end
-          end
-        end,
-      },
-
-      ['OR: Qwen3 Coder'] = {
-        __inherited_from = 'openai', -- Inherit directly from the built-in 'openai' engine
-        endpoint = 'https://openrouter.ai/api/v1',
-        model = 'qwen/qwen3-coder:free',
-        api_key_name = 'OPENROUTER_API_KEY',
-        timeout = 30000,
-      },
-      ['OR: Llama 3.3'] = {
-        __inherited_from = 'openai',
-        endpoint = 'https://openrouter.ai/api/v1',
-        model = 'meta-llama/llama-3.3-70b-instruct:free',
-        api_key_name = 'OPENROUTER_API_KEY',
-        timeout = 30000,
-      },
-
-      -- 3. Local Ollama Models (Flattened)
-      ['local-deepseek'] = {
-        __inherited_from = 'openai',
-        endpoint = 'http://127.0.0.1:11434/v1',
-        model = 'deepseek-coder-v2:16b',
-        timeout = 30000,
-        -- This is the key line to stop the "does not support tools" error
-        disable_tools = true,
+      claude = {
+        endpoint = 'https://api.anthropic.com',
+        model = 'claude-sonnet-4-20250514',
+        timeout = 30000, -- Timeout in milliseconds
         extra_request_body = {
-          options = { temperature = 0, num_ctx = 8192 },
+          temperature = 0.75,
+          max_tokens = 20480,
         },
       },
-
-      ['local-qwen'] = {
+      deepseek = {
+        __inherited_from = 'openai',
+        endpoint = 'https://api.deepseek.com',
+        model = 'deepseek-reasoner',
+        -- model = "deepseek-chat",
+        api_key_name = 'DEEPSEEK_API_KEY',
+        -- timeout = 30000, -- Timeout in milliseconds
+        -- extra_request_body = {
+        --     temperature = 0.75,
+        --     max_tokens = 32768,
+        -- },
+      },
+      moonshot = {
+        endpoint = 'https://api.moonshot.ai/v1',
+        model = 'kimi-k2-0711-preview',
+        timeout = 30000, -- Timeout in milliseconds
+        extra_request_body = {
+          temperature = 0.75,
+          max_tokens = 32768,
+        },
+      },
+      openrouter = {
+        __inherited_from = 'openai',
+        endpoint = 'https://openrouter.ai/api/v1',
+        model = 'qwen/qwen3-coder:free',
+        -- model = "deepseek/deepseek-chat-v3-0324:free",
+        -- model = "deepseek/deepseek-r1-0528:free",
+        api_key_name = 'OPEN_ROUTER_API_KEY',
+        timeout = 30000, -- Timeout in milliseconds
+        extra_request_body = {
+          temperature = 0.75,
+          max_tokens = 32768,
+        },
+      },
+      -- 3. Local Ollama Models (Flattened)
+      ['local-mistral'] = {
         __inherited_from = 'openai',
         endpoint = 'http://127.0.0.1:11434/v1',
-        model = 'qwen2.5-coder:7b',
+        model = 'mistral:7b-instruct',
         timeout = 30000,
         disable_tools = false,
         is_local = true,
@@ -123,24 +82,25 @@ return {
   dependencies = {
     'nvim-lua/plenary.nvim',
     'MunifTanjim/nui.nvim',
-    'nvim-telescope/telescope.nvim',
-    'hrsh7th/nvim-cmp',
-    'ibhagwan/fzf-lua',
-    'stevearc/dressing.nvim',
-    'folke/snacks.nvim',
-    'nvim-tree/nvim-web-devicons',
     {
+      -- support for image pasting
       'HakonHarnes/img-clip.nvim',
       event = 'VeryLazy',
       opts = {
+        -- recommended settings
         default = {
           embed_image_as_base64 = false,
           prompt_for_file_name = false,
+          drag_and_drop = {
+            insert_mode = true,
+          },
+          -- required for Windows users
           use_absolute_path = true,
         },
       },
     },
     {
+      -- Make sure to set this up properly if you have lazy=true
       'MeanderingProgrammer/render-markdown.nvim',
       opts = {
         file_types = { 'markdown', 'Avante' },
