@@ -26,16 +26,14 @@ return {
     local capabilities = require('blink.cmp').get_lsp_capabilities()
 
     -- 1. Setup typescript-tools (Disable this if you want to use vtsls/ts_ls instead)
-    require('typescript-tools').setup {
-      capabilities = capabilities,
-      settings = {
-        -- This helps prevent typescript-tools from fighting with Volar
-        expose_as_code_action = 'all',
-        tsserver_plugins = {
-          '@vue/typescript-plugin',
-        },
-      },
-    }
+    vim.lsp.config('typescript-tools', {
+      cmd = { 'npx', 'typescript-tools', '--stdio' },
+      filetypes = { 'javascript', 'typescript', 'javascriptreact', 'typescriptreact' },
+      root_markers = { 'package.json', 'tsconfig.json', '.git' },
+      -- optional extra settings
+      settings = {},
+    })
+    vim.lsp.enable 'typescript-tools'
 
     -- 2. Define Server Configurations
     vim.lsp.config.lua_ls = {
@@ -69,6 +67,33 @@ return {
       end,
     }
 
+    vim.lsp.config.intelephense = {
+      capabilities = capabilities,
+      filetypes = { 'php' },
+      root_dir = function(fname)
+        return require('lspconfig.util').root_pattern(
+          'composer.json',
+          '.git',
+          'artisan' -- Laravel markers
+        )(fname) or vim.fn.fnamemodify(fname, ':p:h')
+      end,
+      settings = {
+        intelephense = {
+          -- Optional: ignore the licence pop‑up
+          licenceKey = '',
+          -- You can tune diagnostics, formatting, etc.
+          files = {
+            maxSize = 2000000, -- 2 MB, adjust as needed
+          },
+          -- Optional: disable telemetry
+          telemetry = { enabled = false },
+          -- Optional: explicitly set the environment paths (usually not needed)
+          environment = {
+            includePaths = '', -- leaving empty uses root
+          },
+        },
+      },
+    }
     -- 3. Mason Setup
     require('mason-tool-installer').setup {
       ensure_installed = {
@@ -76,11 +101,12 @@ return {
         'lua-language-server',
         'vue-language-server',
         'eslint-lsp',
+        'intelephense',
       },
     }
 
     require('mason-lspconfig').setup {
-      ensure_installed = { 'lua_ls', 'vue_ls' },
+      ensure_installed = { 'lua_ls', 'vue_ls', 'intelephense' },
       -- CRITICAL: Disable this to stop Mason from auto-starting ts_ls/vtsls
       automatic_installation = true,
       automatic_enable = false,
@@ -88,7 +114,7 @@ return {
 
     -- 4. Manual Server Activation Logic
     vim.api.nvim_create_autocmd('FileType', {
-      pattern = { 'lua', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'vue', 'html', 'blade' },
+      pattern = { 'lua', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'vue', 'html', 'blade', 'php' },
       callback = function(args)
         local ft_to_servers = {
           lua = { 'lua_ls' },
@@ -96,10 +122,10 @@ return {
           javascript = { 'typescript-tools' },
           typescriptreact = { 'typescript-tools' },
           javascriptreact = { 'typescript-tools' },
-          -- FIX: Make sure BOTH are listed here clearly
           vue = { 'typescript-tools', 'vue_ls' },
           html = { 'html' },
           blade = { 'html' },
+          php = { 'intelephense' },
         }
 
         local servers = ft_to_servers[args.match]

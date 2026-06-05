@@ -45,3 +45,6 @@ vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper win
 vim.keymap.set('n', '<leader>e', function()
   vim.diagnostic.open_float { focusable = true }
 end, { desc = 'Expand an Error into a float' })
+
+vim.keymap.set('n', 'K', '<Nop>', { noremap = true, silent = true })
+vim.keymap.set('n', 'K', vim.lsp.buf.hover, { buffer = true })
