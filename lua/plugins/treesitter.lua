@@ -1,5 +1,6 @@
 return { -- Highlight, edit, and navigate code
   'nvim-treesitter/nvim-treesitter',
+  branch = 'master',
   build = ':TSUpdate',
   config = function(_, opts)
     require('nvim-treesitter.configs').setup(opts)
